@@ -127,6 +127,12 @@ export const supabaseStore = {
       id: r.profiles.id, name: r.profiles.name, email: r.profiles.email, partnerId: r.profiles.partner_id,
     }));
   },
+  async deleteProject(id) {
+    // Child rows (members, swipes, finalists, vetoes) are removed automatically
+    // by the ON DELETE CASCADE foreign keys. Requires the projects_delete RLS policy.
+    const { error } = await supabase.from("projects").delete().eq("id", id);
+    if (error) throw error;
+  },
 
   // ---------- swipes ----------
   async addSwipe(projectId, nameId, liked, superliked = false) {

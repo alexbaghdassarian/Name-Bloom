@@ -20,6 +20,17 @@ export default function Projects({ user, onOpen, onNew, onNeedPartner }) {
     })();
   }, [user]);
 
+  const remove = async (e, p) => {
+    e.stopPropagation();
+    if (!confirm(`Delete "${p.name}"? This permanently erases its swipes and matches for both of you. This can't be undone.`)) return;
+    try {
+      await store.deleteProject(p.id);
+      setProjects((prev) => (prev || []).filter((x) => x.id !== p.id));
+    } catch (err) {
+      alert("Couldn't delete this project. " + (err?.message || ""));
+    }
+  };
+
   return (
     <div className="rise" style={{ display: "flex", flexDirection: "column", flex: 1 }}>
       <div style={{ padding: "10px 4px 16px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
@@ -52,18 +63,23 @@ export default function Projects({ user, onOpen, onNew, onNeedPartner }) {
           </div>
         )}
         {projects?.map((p) => (
-          <button key={p.id} className="panel project-card" onClick={() => onOpen(p.id)}>
-            <div>
-              <p className="display" style={{ fontSize: 22, fontWeight: 600 }}>{p.name}</p>
-              <p className="muted" style={{ fontSize: 13, marginTop: 2 }}>
-                {(p.includedCultures || []).length} cultures · {p.genderFilter === "all" ? "any gender" : p.genderFilter}
-              </p>
-            </div>
-            <div className="match-badge">
-              <span className="n">{stats[p.id] ?? "·"}</span>
-              <span className="l">matches</span>
-            </div>
-          </button>
+          <div key={p.id} className="panel project-card">
+            <button className="project-open" onClick={() => onOpen(p.id)}>
+              <div>
+                <p className="display" style={{ fontSize: 22, fontWeight: 600 }}>{p.name}</p>
+                <p className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+                  {(p.includedCultures || []).length} cultures · {p.genderFilter === "all" ? "any gender" : p.genderFilter}
+                </p>
+              </div>
+              <div className="match-badge">
+                <span className="n">{stats[p.id] ?? "·"}</span>
+                <span className="l">matches</span>
+              </div>
+            </button>
+            {p.ownerId === user.id && (
+              <button className="project-del" aria-label={`Delete ${p.name}`} title="Delete project" onClick={(e) => remove(e, p)}>🗑</button>
+            )}
+          </div>
         ))}
       </div>
 
@@ -74,8 +90,11 @@ export default function Projects({ user, onOpen, onNew, onNeedPartner }) {
       <style>{`
         .partner-nudge { display: flex; align-items: center; gap: 12px; padding: 14px 16px; margin-bottom: 14px; text-align: left; width: 100%; }
         .partner-nudge span em { display: block; font-style: normal; font-size: 13px; color: var(--ink-soft); }
-        .project-card { display: flex; align-items: center; justify-content: space-between; padding: 18px; text-align: left; width: 100%; }
+        .project-card { display: flex; align-items: stretch; padding: 0; text-align: left; width: 100%; overflow: hidden; }
         .project-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-card); }
+        .project-open { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px; background: transparent; border: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+        .project-del { flex-shrink: 0; width: 54px; border: 0; border-left: 1px solid var(--line); background: transparent; font-size: 18px; color: var(--ink-soft); cursor: pointer; }
+        .project-del:hover { color: var(--coral-deep); background: var(--ground); }
         .match-badge { display: flex; flex-direction: column; align-items: center; background: linear-gradient(180deg,var(--gold),var(--gold-deep)); color: #4a2c00; border-radius: 16px; padding: 8px 14px; min-width: 68px; }
         .match-badge .n { font-family: var(--display); font-size: 24px; font-weight: 700; line-height: 1; }
         .match-badge .l { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
