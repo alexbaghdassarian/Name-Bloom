@@ -1,0 +1,270 @@
+========================================================================
+NAMEBLOOM — PROJECT HANDOFF FOR CLAUDE COWORK
+========================================================================
+Last updated: from a chat session that built and iterated on this app.
+Owner: Alex (React-comfortable, audio engineer; builds side projects).
+Deliverable code: namebloom-app.zip (the full app source, no node_modules).
+
+------------------------------------------------------------------------
+0. WHERE THINGS STAND RIGHT NOW (READ THIS FIRST)
+------------------------------------------------------------------------
+The app is BUILT and works. The ONLY thing blocking real use is a
+deployment/config issue, not a code bug:
+
+- The site is currently deployed to Netlify by DRAG-AND-DROP ("Netlify
+  Drop"). Site URL: namebloombaby.netlify.app
+- Vite bakes the Supabase keys into the code at BUILD time. Drag-and-drop
+  uploads an already-built folder, so Netlify NEVER runs a build and
+  NEVER injects the environment variables. Result: the deployed code has
+  no Supabase URL/key, so account creation fails with
+  "Couldn't reach the server" (earlier it showed the raw error
+  "Unexpected token '<', "<!DOCTYPE"... is not valid JSON").
+- Confirmed via the Supabase dashboard: the project is HEALTHY and not
+  paused, but the AUTH panel showed 0 requests -> the app was never
+  actually reaching Supabase. This matches the "env vars ignored" theory.
+
+THE FIX IN PROGRESS: move from drag-and-drop to a GitHub-connected
+Netlify site so the build runs on Netlify and the env vars actually apply.
+Alex just created a GitHub repo and needs to (1) push the project, then
+(2) connect the repo to Netlify with the two env vars set.
+
+>>> IMMEDIATE NEXT STEPS ARE IN SECTION 7. <<<
+
+------------------------------------------------------------------------
+1. WHAT NAMEBLOOM IS
+------------------------------------------------------------------------
+A couples' baby-name-swiping web app. Two partners each swipe left/right
+(Tinder-style) on baby names. When BOTH like the same name, it becomes a
+"match" (with confetti). Goal: find names you both love, together.
+
+Tech stack: Vite + React (JavaScript, .jsx). Deploy target: Netlify for
+the static frontend + Supabase (Postgres + Auth + Realtime) for real
+two-account / two-device sync.
+
+KEY ARCHITECTURE DECISION — dual backend, one interface:
+The app runs in one of two modes, chosen automatically:
+  - DEMO MODE: if the Supabase env vars are absent. Uses browser
+    localStorage. One person can simulate both partners on one device via
+    a floating "switch partner" control. No real accounts, no sync.
+  - SUPABASE MODE: if VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are
+    present at build time. Real accounts, real two-device sync.
+Both modes implement the SAME store interface (src/lib/demoStore.js and
+src/lib/supabaseStore.js), so screens never branch on backend. The picker
+is src/lib/api.js.
+
+NOTE: The password field + "show password" eye icon only appear in
+Supabase mode (demo mode has no password). So if the deployed site shows
+the password field, the env vars WERE present at build; if it doesn't,
+they weren't.
+
+------------------------------------------------------------------------
+2. FEATURES BUILT (all implemented and working)
+------------------------------------------------------------------------
+- Account creation + sign-in (Supabase Auth in real mode).
+- Partner linking by email (mutual link).
+- Projects (e.g. "My first baby"): pick which of 27 cultures to include,
+  star favorites (favorites surface ~2:1 in the deck), gender filter
+  (Surprise us / Boy / Girl / Unisex), optional surname for full-name
+  preview, and a match goal (default target).
+- Swipe deck: draggable cards with live "Love it / Pass / Top pick"
+  stamps; super-like (swipe up or the star button); keyboard arrows
+  (left = pass, up = top pick, right = love).
+- Each card shows: name, phonetic pronunciation, meaning, origin/culture,
+  full-name (surname) preview, "also spelled" alternatives, a "your
+  partner loved this" ribbon, and a tap-to-hear speaker button (uses the
+  browser SpeechSynthesis API).
+- Matches screen: names both partners liked. Now GROUPED into
+  "Top picks" (anything either partner super-liked, shown first with a
+  gold highlight) and "More matches" below. Also: finalists (when BOTH
+  partners star a name it becomes a mutual "Finalist"), vetoes (remove a
+  match), share/export the shortlist, confetti on new matches, and a
+  progress bar to the match goal.
+- Realtime: in Supabase mode, swipes/matches sync live across devices.
+
+------------------------------------------------------------------------
+3. THE NAMES DATASET
+------------------------------------------------------------------------
+~1,405 curated names across 27 cultures (roughly 45-85 per culture).
+Each name has: gender (boy/girl/unisex), culture, origin label, meaning,
+phonetic pronunciation (US-friendly respelling, e.g. "shih-VAWN"), and
+(for ~107 names) common spelling alternatives.
+
+Cultures: English, Irish & Celtic, Scottish, French, Italian,
+Spanish & Latin, German, Scandinavian, Slavic, Greek, Armenian, Hebrew,
+Arabic, Persian, Turkish, Indian & Sanskrit, Japanese, Chinese, Korean,
+African, Hawaiian, American (modern), Russian, Polish,
+Portuguese & Brazilian, Vietnamese, Filipino.
+
+HOW THE DATA IS GENERATED (important for future edits):
+- scripts/generate_names.mjs holds the name+meaning lists per culture and
+  writes public/names.json.
+- scripts/pron_data.mjs holds two maps: PRON (name -> pronunciation) and
+  ALTS (name -> alternate spellings). The generator merges these in.
+- To regenerate after editing: run  npm run gen:names
+- Honest caveat: pronunciations are respellings (not IPA); accurate for
+  standard pronunciation but names vary by region/family. The dataset is
+  curated, not exhaustive. To grow it: add entries to the generator, or
+  import a CSV into Supabase.
+
+------------------------------------------------------------------------
+4. PROJECT FILE STRUCTURE (inside namebloom-app.zip)
+------------------------------------------------------------------------
+index.html                  - entry; favicon set + Google Fonts + manifest
+netlify.toml                - build cmd "npm run build", publish "dist",
+                              SPA redirect /* -> /index.html 200
+.env.example                - shows the two env vars (leave blank = demo)
+package.json                - Vite React app; scripts: gen:names, dev,
+                              build, preview
+vite.config.js
+README.md                   - deploy steps + honest dataset notes
+public/
+  names.json                - generated dataset (do not hand-edit)
+  favicon.svg, favicon.ico, favicon-16.png, favicon-32.png,
+  apple-touch-icon.png, icon-512.png, site.webmanifest
+scripts/
+  generate_names.mjs        - name + meaning source
+  pron_data.mjs             - PRON + ALTS maps
+src/
+  main.jsx, App.jsx, index.css
+  components/  Confetti.jsx, SwipeCard.jsx, SwipeDeck.jsx, DemoSwitcher.jsx
+  screens/     Auth.jsx, Partner.jsx, Projects.jsx, ProjectSetup.jsx,
+               Swiping.jsx, Matches.jsx
+  lib/         api.js, demoStore.js, supabaseStore.js, supabase.js, names.js
+supabase/
+  schema.sql                - run this once in Supabase SQL Editor
+
+------------------------------------------------------------------------
+5. SUPABASE BACKEND
+------------------------------------------------------------------------
+Project (Alex's): https://ytdzocikarefirnmaqtr.supabase.co
+  - Region: West US (Oregon). Tier: Free. Status: Healthy (not paused).
+  - Get the anon key from: Supabase -> Project Settings -> API ->
+    "anon public" key. Get the Project URL from the same page.
+
+schema.sql creates these tables:
+  profiles (id = auth.users.id, name, email, partner_id)
+  projects (id, seed_id, name, surname, gender_filter, included_cultures[],
+            favorite_cultures[], target_matches, owner_id, created_at)
+  project_members (project_id, user_id)
+  swipes (project_id, user_id, name_id, liked, superliked, at)
+  finalists, vetoes (same shape as swipes)
+Plus: RLS policies, SECURITY DEFINER RPCs link_partner(partner_email) and
+create_project(...), a trigger to auto-create a profile row on signup, and
+"alter publication supabase_realtime add table swipes, finalists, vetoes".
+
+REQUIRED SUPABASE SETUP (do once):
+  1. Run all of supabase/schema.sql in the SQL Editor.
+  2. Verify tables exist in Table Editor (profiles, projects,
+     project_members, swipes, finalists, vetoes). The dashboard said
+     "Last migration: No migrations" — that's fine if schema.sql was run
+     via SQL Editor (those aren't counted as migrations), but CONFIRM the
+     tables are actually there.
+  3. While testing: Authentication -> Providers -> Email -> turn OFF
+     "Confirm email". Otherwise the first sign-in silently stalls waiting
+     for email confirmation.
+
+------------------------------------------------------------------------
+6. DIAGNOSTICS BUILT INTO THE APP (to help debug the connection)
+------------------------------------------------------------------------
+src/lib/supabase.js now:
+  - Validates the URL shape and flags obvious mistakes (dashboard URL
+    used instead of API URL, URL and key swapped, malformed URL).
+  - Logs the resolved URL to the browser console on load:
+      [NameBloom] Supabase URL in use: <url> | anon key: <masked>
+  - Exports testSupabaseConnection() which pings the GoTrue health
+    endpoint and returns plain-English status.
+src/screens/Auth.jsx runs that self-test on load and shows, on the
+sign-in screen:
+  - "Checking connection to your server..." while testing
+  - green "Connected to Supabase. You can create an account." on success
+  - a specific red reason on failure (can't reach it / returned a web
+    page not the API / anon key rejected / paused project, etc.)
+supabaseStore.js signUp/signIn now convert low-level fetch/JSON failures
+into a human message instead of the raw "Unexpected token '<'" error.
+
+So once a correct build is live, the sign-in screen itself will tell you
+whether Supabase is wired up correctly.
+
+------------------------------------------------------------------------
+7. IMMEDIATE NEXT STEPS (the current task)  <<< START HERE >>>
+------------------------------------------------------------------------
+GOAL: get the app onto GitHub, connect that repo to Netlify so Netlify
+BUILDS it (which makes the env vars actually apply), and set the two
+Supabase env vars. Then real accounts + sync will work.
+
+A) Push the project to the GitHub repo Alex just created:
+   1. Open a terminal in the unzipped project folder (has package.json).
+   2. Create a .gitignore file containing:
+        node_modules
+        dist
+        .env
+        .DS_Store
+      (Never commit node_modules, dist, or .env / secrets.)
+   3. Run:
+        git init
+        git add .
+        git commit -m "Initial commit - NameBloom"
+        git branch -M main
+        git remote add origin https://github.com/<USER>/<REPO>.git
+        git push -u origin main
+   4. If GitHub asks for a password over HTTPS: it wants a Personal
+      Access Token (GitHub -> Settings -> Developer settings -> Personal
+      access tokens, scope "repo"), OR use the GitHub CLI: run
+      "gh auth login" first. If push is rejected ("fetch first") because
+      the repo was created with a README:
+        git pull origin main --rebase
+        git push -u origin main
+
+B) Connect the repo to Netlify (this is what makes env vars work):
+   1. Netlify -> Add new site -> Import an existing project -> GitHub ->
+      pick the repo.
+   2. Build command: npm run build
+      Publish directory: dist
+   3. BEFORE deploying, add env vars under Site configuration ->
+      Environment variables (two SEPARATE variables, exact names, no
+      quotes, "same value for all contexts"):
+        VITE_SUPABASE_URL        = https://ytdzocikarefirnmaqtr.supabase.co
+        VITE_SUPABASE_ANON_KEY   = <the anon public key from Supabase>
+      Copy both straight from the Supabase dashboard to avoid typos.
+   4. Deploy. From now on, every "git push" auto-rebuilds, and you also
+      get the "Trigger deploy -> Clear cache and deploy site" button.
+
+C) Verify:
+   - Open the new site, F12 -> Console, confirm the line
+     "[NameBloom] Supabase URL in use: https://ytdzocikarefirnmaqtr..."
+   - The sign-in screen's connection check should go green.
+   - Create an account; the Supabase dashboard AUTH panel should now
+     show requests (it was 0 before).
+
+D) Note on the two sites: connecting the repo creates a NEW Netlify site
+   with a new URL. Alex can either just use the new URL, or point the old
+   site's domain (namebloombaby.netlify.app) at the new one. Simplest:
+   use the new Git-connected site and share that URL with his wife.
+
+ALTERNATIVE (if not going GitHub route): build locally with the keys,
+then drag the dist folder. Create a .env file in the project root with
+the two VITE_ vars, run "npm install" then "npm run build", and drag the
+generated dist/ folder (NOT the whole project) into Netlify Drop. This
+bakes the keys in. GitHub route is preferred for repeat deploys.
+
+------------------------------------------------------------------------
+8. GENERAL REMINDERS
+------------------------------------------------------------------------
+- Any code change requires a redeploy to reach the live site.
+- After deploying, favicons/assets cache hard: hard-refresh
+  (Ctrl+Shift+R / Cmd+Shift+R) or use a private window to confirm.
+- To run locally: npm install, then npm run dev (demo mode unless a local
+  .env has the Supabase vars).
+- To rebuild the names data after edits: npm run gen:names
+- There is also a single-file test artifact (NameBloom.jsx) that was used
+  during the chat to prototype on mobile; it is in-memory/demo only and
+  is NOT the deployable app. The deployable app is namebloom-app.zip.
+
+------------------------------------------------------------------------
+9. POSSIBLE FUTURE ENHANCEMENTS DISCUSSED (not yet built)
+------------------------------------------------------------------------
+- "Add to Home Screen" install prompt for mobile (manifest + icons are
+  already in place, so this is a small add).
+- Deeper per-culture name coverage; richer per-name detail (popularity,
+  IPA, audio).
+========================================================================
