@@ -114,6 +114,9 @@ drop policy if exists projects_write on public.projects;
 create policy projects_write on public.projects for update to authenticated using (public.is_member(id));
 drop policy if exists projects_insert on public.projects;
 create policy projects_insert on public.projects for insert to authenticated with check (owner_id = auth.uid());
+-- only the person who created a project may delete it (cascades to members/swipes/finalists/vetoes)
+drop policy if exists projects_delete on public.projects;
+create policy projects_delete on public.projects for delete to authenticated using (owner_id = auth.uid());
 
 -- membership: you can see your own memberships and those of your projects.
 drop policy if exists members_read on public.project_members;

@@ -60,6 +60,23 @@ export default function Matches({ data, user, projectId, onBack }) {
       });
   }, [swipes, memberIds, vetoedIds, project, data]);
 
+  // Every name *I* liked or gave a top pick — independent of my partner.
+  const myLikes = useMemo(() => {
+    const seen = new Map();
+    for (const s of swipes) {
+      if (s.userId !== user.id || !s.liked) continue;
+      const prev = seen.get(s.nameId);
+      seen.set(s.nameId, { nameId: s.nameId, superMatch: (prev?.superMatch || s.superliked) });
+    }
+    return [...seen.values()]
+      .map((m) => ({ ...m, name: nameById(data, m.nameId) }))
+      .filter((m) => m.name)
+      .sort((a, b) => {
+        if (a.superMatch !== b.superMatch) return a.superMatch ? -1 : 1;
+        return a.name.name.localeCompare(b.name.name);
+      });
+  }, [swipes, user.id, data]);
+
   // A "mutual finalist" = both members starred it.
   const finalistCount = useMemo(() => {
     const byName = {};
@@ -75,7 +92,12 @@ export default function Matches({ data, user, projectId, onBack }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matches.length > 0]);
 
-  const shown = tab === "finalists" ? matches.filter((m) => isMutualFinalist(m.nameId) || iNominated(m.nameId)) : matches;
+  const isMine = tab === "mine";
+  const shown = isMine
+    ? myLikes
+    : tab === "finalists"
+      ? matches.filter((m) => isMutualFinalist(m.nameId) || iNominated(m.nameId))
+      : matches;
 
   const share = async () => {
     const list = matches.filter((m) => isMutualFinalist(m.nameId));
@@ -102,18 +124,23 @@ export default function Matches({ data, user, projectId, onBack }) {
       </div>
 
       <div style={{ textAlign: "center", padding: "6px 0 14px" }}>
-        <div style={{ fontSize: 30 }}>{celebratory ? "🎉" : "🌸"}</div>
+        <div style={{ fontSize: 30 }}>{isMine ? "💗" : celebratory ? "🎉" : "🌸"}</div>
         <h2 className="display" style={{ fontSize: 30, fontWeight: 600, margin: "4px 0 2px" }}>
-          {matches.length} name{matches.length === 1 ? "" : "s"} {memberIds.length >= 2 ? "you both love" : "you loved"}
+          {isMine
+            ? `${myLikes.length} name${myLikes.length === 1 ? "" : "s"} you like`
+            : `${matches.length} name${matches.length === 1 ? "" : "s"} ${memberIds.length >= 2 ? "you both love" : "you loved"}`}
         </h2>
         <p className="muted" style={{ fontSize: 14 }}>
-          {matches.length === 0 ? "Keep swiping — your first match will appear here." : "Star your favorites. When you both star the same name, it becomes a finalist."}
+          {isMine
+            ? (myLikes.length === 0 ? "Swipe right on names you like — they'll collect here, just for you." : "Everything you liked or gave a top pick. Only you see this list.")
+            : (matches.length === 0 ? "Keep swiping — your first match will appear here." : "Star your favorites. When you both star the same name, it becomes a finalist.")}
         </p>
       </div>
 
-      {matches.length > 0 && (
-        <div className="seg2">
-          <button data-on={tab === "all"} onClick={() => setTab("all")}>All matches</button>
+      {(myLikes.length > 0 || matches.length > 0) && (
+        <div className="seg2 seg3">
+          <button data-on={tab === "mine"} onClick={() => setTab("mine")}>My likes</button>
+          <button data-on={tab === "all"} onClick={() => setTab("all")}>Matches</button>
           <button data-on={tab === "finalists"} onClick={() => setTab("finalists")}>Finalists</button>
         </div>
       )}
@@ -121,6 +148,9 @@ export default function Matches({ data, user, projectId, onBack }) {
       <div className="match-list">
         {shown.length === 0 && tab === "finalists" && (
           <p className="muted" style={{ textAlign: "center", padding: 20 }}>No finalists yet. Star names you'd truly consider.</p>
+        )}
+        {shown.length === 0 && isMine && (
+          <p className="muted" style={{ textAlign: "center", padding: 20 }}>You haven't liked any names yet. Head back and start swiping!</p>
         )}
         {(() => {
           const superList = shown.filter((m) => m.superMatch);
@@ -142,7 +172,9 @@ export default function Matches({ data, user, projectId, onBack }) {
                 </div>
                 <div className="mi-actions">
                   <button className={`mi-btn ${mine ? "on" : ""}`} aria-label="Nominate finalist" onClick={() => store.toggleFinalist(projectId, m.nameId)}>★</button>
-                  <button className="mi-btn veto" aria-label="Remove name" onClick={() => { if (confirm(`Remove ${m.name.name} from your matches?`)) store.toggleVeto(projectId, m.nameId); }}>✕</button>
+                  {!isMine && (
+                    <button className="mi-btn veto" aria-label="Remove name" onClick={() => { if (confirm(`Remove ${m.name.name} from your matches?`)) store.toggleVeto(projectId, m.nameId); }}>✕</button>
+                  )}
                 </div>
               </div>
             );
@@ -157,7 +189,7 @@ export default function Matches({ data, user, projectId, onBack }) {
               )}
               {restList.length > 0 && (
                 <>
-                  {superList.length > 0 && <div className="match-section-head">More matches</div>}
+                  {superList.length > 0 && <div className="match-section-head">{isMine ? "More names you liked" : "More matches"}</div>}
                   {restList.map(renderRow)}
                 </>
               )}
@@ -169,6 +201,7 @@ export default function Matches({ data, user, projectId, onBack }) {
       <style>{`
         .matches-head { display: flex; justify-content: space-between; margin-bottom: 4px; }
         .seg2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--ground-2); padding: 5px; border-radius: 999px; margin-bottom: 12px; }
+        .seg3 { grid-template-columns: 1fr 1fr 1fr; }
         .seg2 button { height: 38px; border-radius: 999px; font-weight: 700; font-size: 13px; color: var(--ink-soft); }
         .seg2 button[data-on="true"] { background: var(--white); color: var(--ink); box-shadow: var(--shadow-soft); }
         .match-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 2px 2px 8px; }

@@ -149,6 +149,14 @@ export const demoStore = {
     const p = db.projects.find((x) => x.id === id);
     return p.memberIds.map((mid) => db.users.find((u) => u.id === mid)).filter(Boolean);
   },
+  async deleteProject(id) {
+    const db = load();
+    db.projects = db.projects.filter((p) => p.id !== id);
+    db.swipes = db.swipes.filter((s) => s.projectId !== id);
+    db.finalists = db.finalists.filter((f) => f.projectId !== id);
+    db.vetoes = db.vetoes.filter((v) => v.projectId !== id);
+    save(db);
+  },
 
   // ---------- swipes ----------
   async addSwipe(projectId, nameId, liked, superliked = false) {
